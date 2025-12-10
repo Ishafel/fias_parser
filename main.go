@@ -178,6 +178,10 @@ func streamElements(path string, elementName string, out io.Writer) error {
 				if err := enc.Encode(rec); err != nil {
 					return err
 				}
+				// The matching end element was already consumed inside buildRecord,
+				// so compensate for the extra depth increase.
+				depth--
+				continue
 			}
 		case xml.EndElement:
 			if depth > 0 {
