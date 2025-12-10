@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HOUSES>
+  <HOUSE ID="1" OBJECTID="11" OBJECTGUID="guid-1" REGIONCODE="77">Main</HOUSE>
+  <HOUSE ID="2" OBJECTID="22" OBJECTGUID="guid-2" REGIONCODE="78">Second</HOUSE>
+</HOUSES>
