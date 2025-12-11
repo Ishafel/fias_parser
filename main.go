@@ -13,11 +13,13 @@ import (
 	"strings"
 )
 
+// Минимальное описание XSD-схемы: путь до файла и ожидаемый корневой элемент
 type schemaInfo struct {
 	Path        string
 	RootElement string
 }
 
+// Представление одного XML-элемента, которое сериализуется в поток JSON
 type record struct {
 	Element    string            `json:"element"`
 	Attributes map[string]string `json:"attributes"`
@@ -25,6 +27,7 @@ type record struct {
 }
 
 func main() {
+	// Директория с XSD схемами GAR, XML для парсинга и имя целевого элемента
 	schemaDir := flag.String("schema-dir", "gar_schemas", "Directory with GAR XSD schemas")
 	xmlFile := flag.String("xml", "", "Path to XML file to parse")
 	elementName := flag.String("element", "", "Name of the element to stream (defaults to first child of root)")
@@ -63,6 +66,7 @@ func main() {
 }
 
 func loadSchemas(dir string) (map[string]schemaInfo, error) {
+	// Ищем все XSD файлы в каталоге и строим карту root-элемент -> информация о схеме
 	matches, err := filepath.Glob(filepath.Join(dir, "*.xsd"))
 	if err != nil {
 		return nil, err
@@ -85,6 +89,7 @@ func loadSchemas(dir string) (map[string]schemaInfo, error) {
 }
 
 func detectXSDRoot(path string) (string, error) {
+	// Читаем XSD схему и находим значение атрибута name у первого элемента <element>
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -117,6 +122,7 @@ func detectXSDRoot(path string) (string, error) {
 }
 
 func detectXMLRoot(path string) (string, error) {
+	// Определяем корневой элемент XML, чтобы подобрать соответствующую схему
 	f, err := os.Open(path)
 	if err != nil {
 		return "", err
@@ -138,6 +144,7 @@ func detectXMLRoot(path string) (string, error) {
 }
 
 func streamElements(path string, elementName string, out io.Writer) error {
+	// Потоково сканируем XML и сериализуем каждый целевой элемент в JSON
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -166,6 +173,7 @@ func streamElements(path string, elementName string, out io.Writer) error {
 				continue
 			}
 
+			// Если элемент не указан явно, берём первого ребёнка корня как целевой
 			if target == "" && depth == 2 {
 				target = t.Name.Local
 			}
@@ -192,6 +200,7 @@ func streamElements(path string, elementName string, out io.Writer) error {
 }
 
 func buildRecord(dec *xml.Decoder, start xml.StartElement) (record, error) {
+	// Формируем плоскую запись из элемента: собираем атрибуты и текстовое содержимое
 	attrs := make(map[string]string, len(start.Attr))
 	for _, attr := range start.Attr {
 		attrs[attr.Name.Local] = attr.Value
@@ -206,6 +215,7 @@ func buildRecord(dec *xml.Decoder, start xml.StartElement) (record, error) {
 
 		switch t := tok.(type) {
 		case xml.CharData:
+			// Накапливаем текст внутри элемента, удаляя лишние пробелы и переносы строк
 			data := strings.TrimSpace(string(t))
 			if data != "" {
 				if content.Len() > 0 {
@@ -214,6 +224,7 @@ func buildRecord(dec *xml.Decoder, start xml.StartElement) (record, error) {
 				content.WriteString(data)
 			}
 		case xml.EndElement:
+			// Как только встретили закрывающий тег исходного элемента, возвращаем запись
 			if t.Name.Local == start.Name.Local {
 				return record{
 					Element:    start.Name.Local,
@@ -230,6 +241,7 @@ func buildRecord(dec *xml.Decoder, start xml.StartElement) (record, error) {
 }
 
 func isElement(el xml.StartElement, name string) bool {
+	// Поддерживает проверку имени элемента с учётом пространств имён (берём только локальную часть)
 	if el.Name.Local == name {
 		return true
 	}
