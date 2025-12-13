@@ -14,6 +14,7 @@ import (
 
 // SchemaInfo describes minimal information about an XSD schema.
 type SchemaInfo struct {
+	Prefix      string
 	Path        string
 	RootElement string
 	// RequiredAttributes lists attribute names marked as use="required" for each element defined in the schema.
@@ -29,6 +30,11 @@ func LoadSchemas(dir string) (map[string]SchemaInfo, error) {
 
 	schemas := make(map[string]SchemaInfo)
 	for _, path := range matches {
+		prefix := DatasetPrefix(path)
+		if _, exists := schemas[prefix]; exists {
+			return nil, fmt.Errorf("duplicate schema prefix %q", prefix)
+		}
+
 		root, err := DetectXSDRoot(path)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
@@ -37,7 +43,7 @@ func LoadSchemas(dir string) (map[string]SchemaInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		schemas[root] = SchemaInfo{Path: path, RootElement: root, RequiredAttributes: required}
+		schemas[prefix] = SchemaInfo{Prefix: prefix, Path: path, RootElement: root, RequiredAttributes: required}
 	}
 
 	if len(schemas) == 0 {
@@ -181,4 +187,39 @@ func ExtractRequiredAttributes(path string) (map[string][]string, error) {
 	}
 
 	return required, nil
+}
+
+// DatasetPrefix derives the dataset identifier from a schema or XML file path by
+// stripping extensions and trailing numeric version fragments.
+func DatasetPrefix(path string) string {
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	parts := strings.Split(base, "_")
+	var tokens []string
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		if isAllDigits(part) {
+			break
+		}
+		tokens = append(tokens, part)
+	}
+
+	if len(tokens) == 0 {
+		return base
+	}
+
+	return strings.Join(tokens, "_")
+}
+
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
