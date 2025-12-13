@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -39,30 +40,28 @@ func DetectXMLRoot(path string) (string, error) {
 	}
 }
 
-// StreamElements scans an XML file and emits each matching element as a JSON object to the writer.
-// It returns the number of encoded records.
-func StreamElements(path string, elementName string, out io.Writer) (int, error) {
+// CountElements determines the target element name (if empty) and counts
+// how many matching elements exist in the XML document.
+func CountElements(path string, elementName string) (string, int, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 	defer f.Close()
 
-	enc := json.NewEncoder(out)
 	dec := xml.NewDecoder(bufio.NewReader(f))
 
 	depth := 0
 	target := elementName
-
 	count := 0
 
 	for {
 		tok, err := dec.Token()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return count, nil
+				return target, count, nil
 			}
-			return count, err
+			return target, count, err
 		}
 
 		switch t := tok.(type) {
@@ -77,14 +76,98 @@ func StreamElements(path string, elementName string, out io.Writer) (int, error)
 			}
 
 			if depth == 2 && t.Name.Local == target {
+				count++
+				if err := dec.Skip(); err != nil {
+					if errors.Is(err, io.EOF) {
+						return target, count, nil
+					}
+					return target, count, err
+				}
+				depth--
+			}
+		case xml.EndElement:
+			if depth > 0 {
+				depth--
+			}
+		}
+	}
+}
+
+// StreamResult captures statistics and skipped records during streaming.
+type StreamResult struct {
+	Expected  int
+	Processed int
+	Skipped   []SkippedRecord
+}
+
+// SkippedRecord describes a record that could not be processed.
+type SkippedRecord struct {
+	Index      int
+	ByteOffset int64
+	Element    string
+	Error      string
+}
+
+// StreamElements scans an XML file and emits each matching element as a JSON object to the writer.
+// It returns a StreamResult with counts and skipped record information.
+func StreamElements(path string, elementName string, expected int, out io.Writer) (StreamResult, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return StreamResult{}, err
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(out)
+	dec := xml.NewDecoder(bufio.NewReader(f))
+
+	depth := 0
+	target := elementName
+
+	processed := 0
+	index := 0
+	skipped := make([]SkippedRecord, 0)
+
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return StreamResult{Expected: expected, Processed: processed, Skipped: skipped}, nil
+			}
+			return StreamResult{Expected: expected, Processed: processed, Skipped: skipped}, err
+		}
+
+		switch t := tok.(type) {
+		case xml.StartElement:
+			depth++
+			if depth == 1 {
+				continue
+			}
+
+			if target == "" && depth == 2 {
+				target = t.Name.Local
+			}
+
+			if depth == 2 && t.Name.Local == target {
+				index++
+				offset := dec.InputOffset()
 				rec, err := buildRecord(dec, t)
 				if err != nil {
-					return count, err
+					skipped = append(skipped, SkippedRecord{
+						Index:      index,
+						ByteOffset: offset,
+						Element:    t.Name.Local,
+						Error:      err.Error(),
+					})
+					if skipErr := dec.Skip(); skipErr != nil && !errors.Is(skipErr, io.EOF) {
+						return StreamResult{Expected: expected, Processed: processed, Skipped: skipped}, fmt.Errorf("skip element after error: %w", skipErr)
+					}
+					depth--
+					continue
 				}
 				if err := enc.Encode(rec); err != nil {
-					return count, err
+					return StreamResult{Expected: expected, Processed: processed, Skipped: skipped}, err
 				}
-				count++
+				processed++
 				depth--
 				continue
 			}
