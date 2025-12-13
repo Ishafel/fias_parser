@@ -212,6 +212,34 @@ func DatasetPrefix(path string) string {
 	return strings.Join(tokens, "_")
 }
 
+// LookupSchema returns schema info matching the dataset prefix. It also handles
+// special-case dataset aliases where XML files with "*_PARAMS" prefixes should
+// be validated with the shared AS_PARAM schema.
+func LookupSchema(schemas map[string]SchemaInfo, datasetPrefix string) (SchemaInfo, bool) {
+	if schema, ok := schemas[datasetPrefix]; ok {
+		return schema, true
+	}
+
+	normalized := normalizeDatasetPrefix(datasetPrefix)
+	if normalized != datasetPrefix {
+		if schema, ok := schemas[normalized]; ok {
+			return schema, true
+		}
+	}
+
+	return SchemaInfo{}, false
+}
+
+func normalizeDatasetPrefix(prefix string) string {
+	if strings.HasSuffix(prefix, "_PARAMS") {
+		parts := strings.Split(prefix, "_")
+		if len(parts) >= 2 {
+			return strings.Join([]string{parts[0], "PARAM"}, "_")
+		}
+	}
+	return prefix
+}
+
 func isAllDigits(s string) bool {
 	if s == "" {
 		return false

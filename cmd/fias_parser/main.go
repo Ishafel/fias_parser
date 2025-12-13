@@ -44,7 +44,7 @@ func main() {
 		}
 
 		schemaKey := schema.DatasetPrefix(file)
-		currentSchema, ok := schemas[schemaKey]
+		currentSchema, ok := schema.LookupSchema(schemas, schemaKey)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "no schema found for dataset %q (root %q) in %s\n", schemaKey, xmlRoot, file)
 			os.Exit(1)

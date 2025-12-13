@@ -63,6 +63,31 @@ func TestDatasetPrefix(t *testing.T) {
 	}
 }
 
+func TestLookupSchemaParamsAlias(t *testing.T) {
+	target := SchemaInfo{Prefix: "AS_PARAM"}
+	schemas := map[string]SchemaInfo{"AS_PARAM": target}
+
+	cases := []struct {
+		prefix string
+		found  bool
+	}{
+		{prefix: "AS_PARAM", found: true},
+		{prefix: "AS_ADDR_OBJ_PARAMS", found: true},
+		{prefix: "AS_APARTMENTS_PARAMS", found: true},
+		{prefix: "AS_UNKNOWN", found: false},
+	}
+
+	for _, tc := range cases {
+		got, ok := LookupSchema(schemas, tc.prefix)
+		if ok != tc.found {
+			t.Fatalf("LookupSchema(%q) found = %v, want %v", tc.prefix, ok, tc.found)
+		}
+		if ok && !reflect.DeepEqual(got, target) {
+			t.Fatalf("LookupSchema(%q) = %#v, want %#v", tc.prefix, got, target)
+		}
+	}
+}
+
 func TestLoadSchemasDuplicatePrefix(t *testing.T) {
 	dir := t.TempDir()
 
