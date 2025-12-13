@@ -29,14 +29,13 @@ docker run --rm \
 If your XML uses a specific child element under the root, add `--element <NAME>`.
 
 ### Count validation
-Optionally enforce a record count per XML file and log mismatches:
+The parser now derives the expected record count from each XML file. If any record cannot be processed, the skipped record is identified and all mismatches are appended to the warning log (default `validation.log`).
 ```
 docker run --rm \
   -v "$(pwd)/test:/data" \
   fias-parser \
   --xml /data \
   --schema-dir /gar_schemas \
-  --expected-count 100 \
   --warn-log /data/validation.log
 ```
-The command above streams normally to stdout but appends a warning to `/data/validation.log` whenever the number of emitted records from a file differs from `--expected-count`.
+The command above streams normally to stdout but writes warnings such as missing record counts or specific skipped records (with byte offset) to `/data/validation.log`.

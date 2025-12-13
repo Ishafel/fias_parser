@@ -16,7 +16,6 @@ func main() {
 	schemaDir := flag.String("schema-dir", "gar_schemas", "Directory with GAR XSD schemas")
 	xmlPath := flag.String("xml", "", "Path to XML file or directory to parse")
 	elementName := flag.String("element", "", "Name of the element to stream (defaults to first child of root)")
-	expectedCount := flag.Int("expected-count", -1, "Expected number of records per XML file; if provided, mismatches are logged")
 	warnLog := flag.String("warn-log", "validation.log", "Path to append validation warnings")
 	flag.Parse()
 
@@ -52,18 +51,23 @@ func main() {
 
 		fmt.Fprintf(os.Stderr, "Using schema %s for root element %s in %s\n", currentSchema.Path, currentSchema.RootElement, file)
 
-		count, err := xmlstream.StreamElements(file, *elementName, os.Stdout)
+		targetElement, expected, err := xmlstream.CountElements(file, *elementName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "count elements in %s: %v\n", file, err)
+			os.Exit(1)
+		}
+
+		result, err := xmlstream.StreamElements(file, targetElement, expected, os.Stdout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "stream xml from %s: %v\n", file, err)
 			os.Exit(1)
 		}
 
-		if *expectedCount >= 0 && count != *expectedCount {
-			msg := fmt.Sprintf("expected %d records but found %d in %s", *expectedCount, count, file)
-			if err := appendWarning(*warnLog, msg); err != nil {
+		if result.Processed != result.Expected || len(result.Skipped) > 0 {
+			if err := logValidation(*warnLog, file, result); err != nil {
 				fmt.Fprintf(os.Stderr, "log warning: %v\n", err)
 			}
-			fmt.Fprintln(os.Stderr, "warning:", msg)
+			fmt.Fprintf(os.Stderr, "validation warning: expected %d records but processed %d in %s\n", result.Expected, result.Processed, file)
 		}
 	}
 }
@@ -77,6 +81,22 @@ func appendWarning(path string, msg string) error {
 
 	if _, err := fmt.Fprintln(f, msg); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func logValidation(path string, file string, result xmlstream.StreamResult) error {
+	summary := fmt.Sprintf("expected %d records but processed %d in %s", result.Expected, result.Processed, file)
+	if err := appendWarning(path, summary); err != nil {
+		return err
+	}
+
+	for _, skipped := range result.Skipped {
+		msg := fmt.Sprintf("%s: skipped record #%d at byte %d for element %s: %s", file, skipped.Index, skipped.ByteOffset, skipped.Element, skipped.Error)
+		if err := appendWarning(path, msg); err != nil {
+			return err
+		}
 	}
 
 	return nil
