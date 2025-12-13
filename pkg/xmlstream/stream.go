@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -110,7 +111,7 @@ type SkippedRecord struct {
 
 // StreamElements scans an XML file and emits each matching element as a JSON object to the writer.
 // It returns a StreamResult with counts and skipped record information.
-func StreamElements(path string, elementName string, expected int, out io.Writer) (StreamResult, error) {
+func StreamElements(path string, elementName string, expected int, requiredAttrs []string, out io.Writer) (StreamResult, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return StreamResult{}, err
@@ -119,6 +120,11 @@ func StreamElements(path string, elementName string, expected int, out io.Writer
 
 	enc := json.NewEncoder(out)
 	dec := xml.NewDecoder(bufio.NewReader(f))
+
+	requiredAttrSet := make(map[string]struct{}, len(requiredAttrs))
+	for _, name := range requiredAttrs {
+		requiredAttrSet[name] = struct{}{}
+	}
 
 	depth := 0
 	target := elementName
@@ -150,7 +156,7 @@ func StreamElements(path string, elementName string, expected int, out io.Writer
 			if depth == 2 && t.Name.Local == target {
 				index++
 				offset := dec.InputOffset()
-				rec, err := buildRecord(dec, t)
+				rec, err := buildRecord(dec, t, requiredAttrSet)
 				if err != nil {
 					skipped = append(skipped, SkippedRecord{
 						Index:      index,
@@ -179,10 +185,23 @@ func StreamElements(path string, elementName string, expected int, out io.Writer
 	}
 }
 
-func buildRecord(dec *xml.Decoder, start xml.StartElement) (Record, error) {
+func buildRecord(dec *xml.Decoder, start xml.StartElement, requiredAttrs map[string]struct{}) (Record, error) {
 	attrs := make(map[string]string, len(start.Attr))
 	for _, attr := range start.Attr {
 		attrs[attr.Name.Local] = attr.Value
+	}
+
+	if len(requiredAttrs) > 0 {
+		var missing []string
+		for name := range requiredAttrs {
+			if _, ok := attrs[name]; !ok {
+				missing = append(missing, name)
+			}
+		}
+		if len(missing) > 0 {
+			sort.Strings(missing)
+			return Record{}, fmt.Errorf("missing required attributes: %s", strings.Join(missing, ", "))
+		}
 	}
 
 	var content strings.Builder

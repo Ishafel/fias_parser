@@ -57,7 +57,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		result, err := xmlstream.StreamElements(file, targetElement, expected, os.Stdout)
+		requiredAttrs := currentSchema.RequiredAttributes[targetElement]
+
+		result, err := xmlstream.StreamElements(file, targetElement, expected, requiredAttrs, os.Stdout)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "stream xml from %s: %v\n", file, err)
 			os.Exit(1)
