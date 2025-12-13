@@ -40,10 +40,11 @@ func DetectXMLRoot(path string) (string, error) {
 }
 
 // StreamElements scans an XML file and emits each matching element as a JSON object to the writer.
-func StreamElements(path string, elementName string, out io.Writer) error {
+// It returns the number of encoded records.
+func StreamElements(path string, elementName string, out io.Writer) (int, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer f.Close()
 
@@ -53,13 +54,15 @@ func StreamElements(path string, elementName string, out io.Writer) error {
 	depth := 0
 	target := elementName
 
+	count := 0
+
 	for {
 		tok, err := dec.Token()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				return count, nil
 			}
-			return err
+			return count, err
 		}
 
 		switch t := tok.(type) {
@@ -76,11 +79,12 @@ func StreamElements(path string, elementName string, out io.Writer) error {
 			if depth == 2 && t.Name.Local == target {
 				rec, err := buildRecord(dec, t)
 				if err != nil {
-					return err
+					return count, err
 				}
 				if err := enc.Encode(rec); err != nil {
-					return err
+					return count, err
 				}
+				count++
 				depth--
 				continue
 			}

@@ -16,6 +16,8 @@ func main() {
 	schemaDir := flag.String("schema-dir", "gar_schemas", "Directory with GAR XSD schemas")
 	xmlPath := flag.String("xml", "", "Path to XML file or directory to parse")
 	elementName := flag.String("element", "", "Name of the element to stream (defaults to first child of root)")
+	expectedCount := flag.Int("expected-count", -1, "Expected number of records per XML file; if provided, mismatches are logged")
+	warnLog := flag.String("warn-log", "validation.log", "Path to append validation warnings")
 	flag.Parse()
 
 	if *xmlPath == "" {
@@ -50,11 +52,34 @@ func main() {
 
 		fmt.Fprintf(os.Stderr, "Using schema %s for root element %s in %s\n", currentSchema.Path, currentSchema.RootElement, file)
 
-		if err := xmlstream.StreamElements(file, *elementName, os.Stdout); err != nil {
+		count, err := xmlstream.StreamElements(file, *elementName, os.Stdout)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "stream xml from %s: %v\n", file, err)
 			os.Exit(1)
 		}
+
+		if *expectedCount >= 0 && count != *expectedCount {
+			msg := fmt.Sprintf("expected %d records but found %d in %s", *expectedCount, count, file)
+			if err := appendWarning(*warnLog, msg); err != nil {
+				fmt.Fprintf(os.Stderr, "log warning: %v\n", err)
+			}
+			fmt.Fprintln(os.Stderr, "warning:", msg)
+		}
 	}
+}
+
+func appendWarning(path string, msg string) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if _, err := fmt.Fprintln(f, msg); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func collectXMLFiles(path string) ([]string, error) {
