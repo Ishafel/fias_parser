@@ -1,16 +1,16 @@
-# Build the streaming GAR XML parser
+# Сборка потокового парсера GAR XML
 FROM golang:1.21 AS builder
 WORKDIR /app
 
-# Download dependencies first for better layer caching
+# Сначала загрузите зависимости для лучшего кэширования слоёв
 COPY go.mod ./
 RUN go mod download
 
-# Copy the rest of the source
+# Копирование остального исходного кода
 COPY . .
 
-# Build statically linked binary for a small runtime image
-# Only compile the CLI entrypoint to avoid "multiple packages" errors
+# Сборка статически связанного бинарного файла для небольшого образа выполнения
+# Компилируйте только точку входа CLI, чтобы избежать ошибок "несколько пакетов"
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/fias-parser ./cmd/fias_parser
 
 FROM debian:bookworm-slim

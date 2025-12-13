@@ -1,14 +1,14 @@
-# FIAS Parser
+# Парсер ФИАС
 
-CLI utility for streaming GAR XML data to JSONL.
+Утилита командной строки для потоковой передачи данных GAR XML в JSONL.
 
-## Build Docker image
+## Сборка образа Docker
 ```
 docker build -t fias-parser .
 ```
 
-## Run from Docker
-Mount your XML directory and point the CLI to it. Schemas are already baked into the image at `/gar_schemas`.
+## Запуск из Docker
+Подключите каталог с XML-файлами и укажите на него в CLI. Схемы уже встроены в образ по пути `/gar_schemas`.
 ```
 docker run --rm \
   -v "$(pwd)/test:/data" \
@@ -17,7 +17,7 @@ docker run --rm \
   --schema-dir /gar_schemas
 ```
 
-The command above streams every XML file in the host `test` folder to stdout. Redirect stdout to capture JSONL records, e.g.:
+Приведенная выше команда передает каждый XML-файл из хост-каталога `test` в stdout. Перенаправьте stdout, чтобы сохранить записи JSONL, например:
 ```
 docker run --rm \
   -v "$(pwd)/test:/data" \
@@ -28,8 +28,8 @@ docker run --rm \
 
 If your XML uses a specific child element under the root, add `--element <NAME>`.
 
-### Count validation
-The parser now derives the expected record count from each XML file. If any record cannot be processed, the skipped record is identified and all mismatches are appended to the warning log (default `validation.log`).
+### Валидация количества записей
+Парсер теперь определяет ожидаемое количество записей из каждого XML-файла. Если какую-либо запись не удается обработать, пропущенная запись идентифицируется, и все несоответствия добавляются в журнал предупреждений (по умолчанию `validation.log`).
 ```
 docker run --rm \
   -v "$(pwd)/test:/data" \
@@ -38,4 +38,4 @@ docker run --rm \
   --schema-dir /gar_schemas \
   --warn-log /data/validation.log
 ```
-The command above streams normally to stdout but writes warnings such as missing record counts or specific skipped records (with byte offset) to `/data/validation.log`.
+Приведенная выше команда передает данные в stdout, но записывает предупреждения, такие как отсутствующее количество записей или конкретные пропущенные записи (с байтовым смещением), в `/data/validation.log`.
