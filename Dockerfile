@@ -10,7 +10,8 @@ RUN go mod download
 COPY . .
 
 # Build statically linked binary for a small runtime image
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/fias-parser ./...
+# Only compile the CLI entrypoint to avoid "multiple packages" errors
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/fias-parser ./cmd/fias_parser
 
 FROM debian:bookworm-slim
 WORKDIR /
