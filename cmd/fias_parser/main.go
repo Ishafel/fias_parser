@@ -43,13 +43,18 @@ func main() {
 			os.Exit(1)
 		}
 
-		currentSchema, ok := schemas[xmlRoot]
+		schemaKey := schema.DatasetPrefix(file)
+		currentSchema, ok := schemas[schemaKey]
 		if !ok {
-			fmt.Fprintf(os.Stderr, "no schema found for root element %q in %s\n", xmlRoot, file)
+			fmt.Fprintf(os.Stderr, "no schema found for dataset %q (root %q) in %s\n", schemaKey, xmlRoot, file)
+			os.Exit(1)
+		}
+		if currentSchema.RootElement != xmlRoot {
+			fmt.Fprintf(os.Stderr, "schema %s root element %q does not match xml root %q in %s\n", currentSchema.Path, currentSchema.RootElement, xmlRoot, file)
 			os.Exit(1)
 		}
 
-		fmt.Fprintf(os.Stderr, "Using schema %s for root element %s in %s\n", currentSchema.Path, currentSchema.RootElement, file)
+		fmt.Fprintf(os.Stderr, "Using schema %s for dataset %s in %s\n", currentSchema.Path, currentSchema.Prefix, file)
 
 		targetElement, expected, err := xmlstream.CountElements(file, *elementName)
 		if err != nil {
